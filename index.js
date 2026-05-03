@@ -215,7 +215,7 @@ client.once("ready", async () => {
         const sync = await Promise.race([
             ensureRecruitmentPanel(client),
             new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Recruitment panel sync timeout after 20s")), 20000)
+                setTimeout(() => reject(new Error("Recruitment panel sync timeout after 2s")), 2000)
             )
         ]);
 
@@ -279,7 +279,7 @@ app.set("trust proxy", 1);
 app.use(express.json({ limit: "256kb" }));
 
 app.get("/", (req, res) => {
-    res.json({
+    res.status(client.isBotReady ? 200 : 503).json({
         status: client.isBotReady ? "alive" : "disconnected",
         uptime: Math.floor(process.uptime()),
         discordStatus: client.isBotReady ? "connected" : "disconnected",
@@ -309,14 +309,31 @@ app.get("/health", (req, res) => {
 // Keep-alive logs every 5 min
 setInterval(() => {
     console.log(`Keep-alive: Discord ${client.isBotReady ? "connected" : "DISCONNECTED"}`);
-}, 5 * 60 * 1000);
+    ensureRecruitmentPanel(client).catch(err => console.error("Recruitment panel keep-alive error:", err.message));
+}, 60 * 1000);
 
 app.listen(PORT, () => console.log(`🌐 Web server running on ${PORT}`));
 
 // Single login call
 console.log("📡 Attempting Discord connection...");
 console.log(`Token configured: ${process.env.DISCORD_TOKEN ? "yes" : "no"}`);
-client.login(process.env.DISCORD_TOKEN);
+
+async function startDiscordClient() {
+    const token = process.env.DISCORD_TOKEN;
+    if (!token) {
+        console.error("DISCORD_TOKEN is not set. Refusing to run a disconnected bot process.");
+        process.exit(1);
+    }
+
+    try {
+        await client.login(token);
+    } catch (error) {
+        console.error("Discord login failed:", error);
+        process.exit(1);
+    }
+}
+
+startDiscordClient();
 
 let attempts = 0;
 const checkInterval = setInterval(() => {
@@ -326,7 +343,7 @@ const checkInterval = setInterval(() => {
         console.log("✅ Bot is READY!");
         clearInterval(checkInterval);
     }
-    if (attempts >= 7) {
+    if (attempts >= 12) {
         clearInterval(checkInterval);
         console.error("❌ Bot failed to connect after 35 seconds");
     }

@@ -1070,6 +1070,10 @@ async function sendRecruitmentLog(client, config, ticket, applicantImages = []) 
 }
 
 async function finishClose(interaction, outcomeId) {
+    if (interaction.isButton?.() && !interaction.deferred && !interaction.replied) {
+        await interaction.deferUpdate();
+    }
+
     if (!(await requireRecruiter(interaction))) return;
 
     const config = await loadDashboardConfig();
